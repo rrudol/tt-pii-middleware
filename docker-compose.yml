@@ -1,0 +1,34 @@
+services:
+  pii-middleware:
+    build: .
+    image: tt-pii-middleware:latest
+    ports:
+      - "8080:8080"
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DEFAULT_LANGUAGE: ${DEFAULT_LANGUAGE:-pl}
+      SCORE_THRESHOLD: ${SCORE_THRESHOLD:-0.4}
+      ENABLE_KRS: ${ENABLE_KRS:-false}
+      HASH_SALT: ${HASH_SALT:-}
+      # Set REDIS_URL=redis://redis:6379/0 and start with
+      # `docker compose --profile vault up` to enable the mapping vault.
+      REDIS_URL: ${REDIS_URL:-}
+      MAPPING_TTL_SECONDS: ${MAPPING_TTL_SECONDS:-900}
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3).status == 200 else 1)"
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+    restart: unless-stopped
+
+  # Optional short-TTL vault for /v1/anonymize mappings (profile: vault).
+  redis:
+    image: redis:7-alpine
+    profiles: ["vault"]
+    command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    restart: unless-stopped

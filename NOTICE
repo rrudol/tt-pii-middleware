@@ -1,0 +1,12 @@
+tt-pii-middleware
+Copyright (c) 2026 Thinking Typewriters. All rights reserved.
+
+This is proprietary software of Thinking Typewriters. It is provided for
+internal use only. No part of this repository may be copied, modified,
+distributed, sublicensed, or used outside Thinking Typewriters without prior
+written permission.
+
+This software incorporates open-source components (Microsoft Presidio, spaCy,
+pii-core / pii-presidio / pii-veil, FastAPI, and others) under their
+respective licenses; see the packages' own license files. This NOTICE applies
+to the original code in this repository only.
