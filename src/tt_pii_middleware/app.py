@@ -112,8 +112,16 @@ async def lifespan(app: FastAPI):
     started = time.perf_counter()
     app.state.settings = settings
     app.state.engine = PiiEngine(settings)
+    # Short socket timeouts: the vault is best-effort, so an unreachable
+    # Redis must degrade to "mapping only in the response" instead of
+    # parking worker threads on blocking connects.
     app.state.redis = (
-        redis_lib.Redis.from_url(settings.redis_url, decode_responses=True)
+        redis_lib.Redis.from_url(
+            settings.redis_url,
+            decode_responses=True,
+            socket_connect_timeout=2,
+            socket_timeout=2,
+        )
         if settings.redis_url
         else None
     )

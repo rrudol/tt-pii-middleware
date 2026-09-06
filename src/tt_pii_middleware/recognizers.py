@@ -3,9 +3,9 @@
 Three layers, all self-hosted (no SaaS DLP in the path):
 
 1. ``pii-presidio`` / ``pii-core``: checksum-validated Polish identifiers
-   (PESEL, NIP, REGON, PL IBAN) plus Luhn-validated credit cards and the
-   regex-only passport detector, wrapped as Presidio ``PatternRecognizer``s.
-2. Presidio built-ins: multi-country IBAN (mod-97), e-mail, spaCy NER
+   (PESEL, NIP, REGON, PL IBAN) plus Luhn-validated credit cards, e-mail and
+   the regex-only passport detector, wrapped as Presidio ``PatternRecognizer``s.
+2. Presidio built-ins: multi-country IBAN (mod-97), spaCy NER
    (PERSON / ORG / LOCATION / dates).
 3. Custom recognizers closing the gaps found in the 3k-doc eval:
    checksum-validated DOWOD (pii-core's is regex-only -> 100% FP on
@@ -17,6 +17,7 @@ import regex
 
 from pii_core import (
     CreditCardDetector,
+    EmailDetector,
     PlIbanDetector,
     PlNipDetector,
     PlPassportDetector,
@@ -25,11 +26,7 @@ from pii_core import (
 )
 from pii_presidio import PiiCoreRecognizer
 from presidio_analyzer import Pattern, PatternRecognizer
-from presidio_analyzer.predefined_recognizers import (
-    EmailRecognizer,
-    IbanRecognizer,
-    SpacyRecognizer,
-)
+from presidio_analyzer.predefined_recognizers import IbanRecognizer, SpacyRecognizer
 
 from tt_pii_middleware.config import Settings
 
@@ -231,9 +228,12 @@ class PlDobRecognizer(PatternRecognizer):
 # (detector factory, base score, context words) for the pii-core detectors we
 # keep. Checksum-backed detectors get score 1.0 on valid checksums via
 # PiiCoreRecognizer.validate_result regardless of the base score. Excluded on
-# purpose: PlIdCardDetector + PlPhoneDetector (replaced by the customs above),
-# EmailDetector (Presidio's built-in scores higher), KRS/postal opt-ins
-# (replaced by the gated customs above).
+# purpose: PlIdCardDetector + PlPhoneDetector (replaced by the customs above)
+# and the KRS/postal opt-ins (replaced by the gated customs above).
+# EmailDetector is used instead of Presidio's built-in EmailRecognizer because
+# the built-in validates through tldextract, which downloads the public suffix
+# list at runtime -- forbidden egress inside the VPC (and it stalls requests
+# when the download can't complete).
 _PII_CORE_SPECS = [
     (PlPeselDetector, 0.85, ["pesel"]),
     (PlNipDetector, 0.85, ["nip", "podatkowy", "vat"]),
@@ -241,6 +241,7 @@ _PII_CORE_SPECS = [
     (PlIbanDetector, 0.85, ["iban", "konto", "rachunek", "account"]),
     (PlPassportDetector, 0.4, ["paszport", "passport", "seria"]),
     (CreditCardDetector, 0.85, ["karta", "card", "credit", "płatnicza"]),
+    (EmailDetector, 0.6, ["email", "e-mail", "mail", "kontakt"]),
 ]
 
 # Entities SpacyRecognizer should surface (NRP et al. are ignored).
@@ -260,7 +261,6 @@ def build_recognizers(language: str, settings: Settings) -> list[PatternRecogniz
         PlPostalCodeRecognizer(language),
         PlAddressRecognizer(language),
         PlDobRecognizer(language),
-        EmailRecognizer(supported_language=language, context=["email", "e-mail", "mail", "kontakt"]),
         IbanRecognizer(supported_language=language, context=["iban", "konto", "rachunek", "account", "bank"]),
         SpacyRecognizer(supported_language=language, supported_entities=list(_SPACY_ENTITIES)),
     ]

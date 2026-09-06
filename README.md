@@ -15,13 +15,13 @@ models are baked into the image at build time.
                    │  Presidio AnalyzerEngine                       │
                    │   ├─ pii-presidio / pii-core  (checksums)      │
                    │   │    PESEL · NIP · REGON · PL-IBAN ·         │
-                   │   │    passport · credit card (Luhn)           │
+                   │   │    passport · credit card (Luhn) · EMAIL   │
                    │   ├─ custom TT recognizers   (eval gap fixes)  │
                    │   │    DOWOD (checksum!) · PHONE (PL formats)  │
                    │   │    PLATE · POSTAL · ADDRESS · DOB ·        │
                    │   │    KRS (context-gated opt-in)              │
                    │   ├─ Presidio built-ins                        │
-                   │   │    EMAIL · IBAN (multi-country mod-97)     │
+                   │   │    IBAN (multi-country mod-97)             │
                    │   └─ spaCy NER  pl_core_news_md / en_core_web_sm
                    │        PERSON · ORG · LOCATION · dates         │
                    │                                                │
@@ -187,7 +187,7 @@ PLATE (was 0), PHONE formats, DOWOD FPs. ORG/DOB/ADDRESS remain approximate.
 | DOB | `PL_DOB` + `DATE_TIME` | **custom** date shapes + spaCy dates | kept **only** when a birth keyword ("ur.", "urodzony", "data urodzenia", "born", …) directly precedes; other dates are dropped |
 | PERSON | `PERSON` | spaCy NER | statistical |
 | ORG | `ORGANIZATION` | spaCy NER | statistical |
-| EMAIL | `EMAIL_ADDRESS` | Presidio built-in | regex + context |
+| EMAIL | `EMAIL_ADDRESS` | pii-core via pii-presidio | regex + context (Presidio's built-in e-mail recognizer is deliberately **not** used: it validates via `tldextract`, which downloads the public suffix list at runtime — forbidden egress in the VPC) |
 
 Post-processing (in `analyzer.py`): overlap dedupe where checksum/pattern
 matches always beat statistical NER spans (prevents spaCy's fondness for

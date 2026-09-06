@@ -40,10 +40,16 @@ def configure_logging(level: str) -> None:
     root.setLevel(level.upper())
     # uvicorn loggers propagate to root; drop their own handlers so every
     # line on stdout is one JSON object.
-    for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+    for name in ("uvicorn", "uvicorn.error"):
         lg = logging.getLogger(name)
         lg.handlers = []
         lg.propagate = True
+    # Access logs are redundant (we emit structured per-request events) and
+    # uvicorn treats an inherited root handler as "access log enabled" even
+    # under --no-access-log, so cut propagation entirely.
+    access = logging.getLogger("uvicorn.access")
+    access.handlers = []
+    access.propagate = False
 
 
 def log_event(logger: logging.Logger, event: str, **fields: Any) -> None:
