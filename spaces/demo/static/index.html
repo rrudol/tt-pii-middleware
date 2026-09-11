@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>PL-PII Redact Demo (static showcase)</title>
+<style>
+  :root { font-family: ui-sans-serif, system-ui, sans-serif; color: #0f172a; }
+  body { max-width: 960px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+  a { color: #1d4ed8; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+  pre { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem; white-space: pre-wrap; word-break: break-word; }
+  .ex { margin: 1.5rem 0; padding: 1rem; border: 1px solid #e2e8f0; border-radius: 12px; }
+  .warn { background: #fff7ed; border: 1px solid #fed7aa; padding: 0.85rem 1rem; border-radius: 8px; }
+  code { background: #f1f5f9; padding: 0.1rem 0.35rem; border-radius: 4px; }
+  footer { margin-top: 2rem; color: #64748b; font-size: 0.9rem; border-top: 1px solid #e2e8f0; padding-top: 1rem; }
+</style>
+</head>
+<body>
+  <h1>PL-PII redaction — static showcase</h1>
+  <p>Precomputed examples from <strong>tt-pii-middleware</strong> (Apache-2.0).
+  Hugging Face free tier does not host Gradio/Docker Spaces without PRO, so this
+  page shows fixed synthetic before/after pairs. Run the live UI locally:</p>
+  <pre><code>git clone https://github.com/rrudol/tt-pii-middleware
+cd tt-pii-middleware && make install
+# optional Docker demo:
+make demo-local   # http://localhost:7860</code></pre>
+  <div class="warn"><strong>Guardrails (when you run it yourself):</strong> redact-only,
+  max 2000 chars, rate limit, never log raw text. Do not paste real production PII.
+  Redaction ≠ GDPR compliance.</div>
+  
+    <section class="ex">
+      <h3>Umowa / PESEL + phone + email</h3>
+      <p class="lbl">detected: <code>EMAIL, PERSON, PESEL, PHONE</code></p>
+      <div class="grid">
+        <div><h4>input (synthetic)</h4><pre>Klient Jan Kowalski, PESEL 44051401359, tel. +48 601 234 567, mail jan@example.pl</pre></div>
+        <div><h4>redacted</h4><pre>Klient <PERSON>, PESEL <PESEL>, tel. <PHONE>, mail <EMAIL></pre></div>
+      </div>
+    </section>
+    
+    <section class="ex">
+      <h3>Faktura / NIP + REGON + IBAN</h3>
+      <p class="lbl">detected: <code>IBAN, NIP, REGON</code></p>
+      <div class="grid">
+        <div><h4>input (synthetic)</h4><pre>Faktura: NIP 123-456-32-18, REGON 123456785, IBAN PL61109010140000071219812874</pre></div>
+        <div><h4>redacted</h4><pre>Faktura: NIP <NIP>, REGON <REGON>, IBAN <IBAN></pre></div>
+      </div>
+    </section>
+    
+    <section class="ex">
+      <h3>Dowód + tablica + adres</h3>
+      <p class="lbl">detected: <code>ADDRESS, DOWOD, PLATE, POSTAL</code></p>
+      <div class="grid">
+        <div><h4>input (synthetic)</h4><pre>Dowód ABA300000, tablica rejestracyjna WW 12345, adres ul. Długa 5, 00-950 Warszawa</pre></div>
+        <div><h4>redacted</h4><pre>Dowód <DOWOD>, tablica rejestracyjna <PLATE>, adres <ADDRESS>, <POSTAL> <ADDRESS></pre></div>
+      </div>
+    </section>
+    
+  <h2>API (self-hosted)</h2>
+  <pre><code>docker compose up --build
+curl -s localhost:8080/v1/redact -H 'content-type: application/json' \
+  -d '{"text":"PESEL 44051401359"}'</code></pre>
+  <footer>
+    <a href="https://github.com/rrudol/tt-pii-middleware">GitHub</a> ·
+    <a href="https://huggingface.co/datasets/rafalrudol/pl-pii-synthetic-v1">Dataset</a> ·
+    <a href="https://huggingface.co/spaces/rafalrudol/pl-pii-metrics">Metrics</a>
+  </footer>
+</body>
+</html>

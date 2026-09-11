@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>PL-PII Synthetic Metrics</title>
+<style>
+  :root { font-family: ui-sans-serif, system-ui, sans-serif; color: #0f172a; }
+  body { max-width: 880px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+  a { color: #1d4ed8; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.92rem; margin: 1rem 0; }
+  th, td { border: 1px solid #cbd5e1; padding: 0.4rem 0.55rem; text-align: left; }
+  th { background: #f1f5f9; }
+  code, pre { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; }
+  code { padding: 0.1rem 0.35rem; }
+  pre { padding: 0.85rem 1rem; overflow: auto; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit,minmax(160px,1fr)); gap: 0.75rem; margin: 1rem 0 1.5rem; }
+  .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.9rem 1rem; }
+  .card b { display: block; font-size: 1.4rem; }
+  .muted { color: #475569; font-size: 0.95rem; }
+  footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+  <h1>Polish PII — synthetic benchmark</h1>
+  <p class="muted">Exact-span eval of <strong>tt-pii-middleware</strong> on
+  <a href="https://huggingface.co/datasets/rafalrudol/pl-pii-synthetic-v1">pl-pii-synthetic-v1</a>
+  (n=3000, seed=42). All identifiers are synthetic. This page does not process user text.</p>
+  <div class="cards">
+    <div class="card"><span>micro F1 (all)</span><b>0.956</b></div>
+    <div class="card"><span>public-label F1</span><b>1.000</b></div>
+    <div class="card"><span>invalid checksum FP</span><b>0</b></div>
+    <div class="card"><span>docs</span><b>3000</b></div>
+  </div>
+  <h2>Reproduce</h2>
+  <pre><code>git clone https://github.com/rrudol/tt-pii-middleware
+cd tt-pii-middleware && make install && make eval-public</code></pre>
+  <h2>Per-label results</h2>
+  <h1>Synthetic eval snapshot</h1>
+
+<p>Regenerate with `make eval` / `make eval-public` (seed=42, n=3000).</p>
+
+<li>docs: **3000**</li>
+<li>avg latency: **31.72 ms/doc**</li>
+<li>micro F1 (all labels): **0.9558** (P=0.9269 R=0.9865)</li>
+<li>public-label micro F1: **1.0000** (P=1.0000 R=1.0000)</li>
+<li>invalid checksum FPs: **0** across PESEL/NIP/REGON/IBAN/DOWOD/CARD</li>
+
+<table>
+<tr><th>label</th><th>P</th><th>R</th><th>F1</th><th>support</th><th>invalid_fp</th></tr>
+<tr><td>ADDRESS</td><td>0.897</td><td>0.969</td><td>0.932</td><td>2702</td><td>0</td></tr>
+<tr><td>CARD</td><td>1.000</td><td>1.000</td><td>1.000</td><td>747</td><td>0</td></tr>
+<tr><td>DOB</td><td>1.000</td><td>1.000</td><td>1.000</td><td>689</td><td>0</td></tr>
+<tr><td>DOWOD</td><td>1.000</td><td>1.000</td><td>1.000</td><td>757</td><td>0</td></tr>
+<tr><td>EMAIL</td><td>1.000</td><td>1.000</td><td>1.000</td><td>2069</td><td>0</td></tr>
+<tr><td>IBAN</td><td>1.000</td><td>1.000</td><td>1.000</td><td>958</td><td>0</td></tr>
+<tr><td>KRS</td><td>1.000</td><td>1.000</td><td>1.000</td><td>309</td><td>0</td></tr>
+<tr><td>NIP</td><td>1.000</td><td>1.000</td><td>1.000</td><td>958</td><td>0</td></tr>
+<tr><td>ORG</td><td>0.645</td><td>1.000</td><td>0.784</td><td>693</td><td>0</td></tr>
+<tr><td>PASSPORT</td><td>1.000</td><td>1.000</td><td>1.000</td><td>245</td><td>0</td></tr>
+<tr><td>PERSON</td><td>0.743</td><td>0.929</td><td>0.825</td><td>2242</td><td>0</td></tr>
+<tr><td>PESEL</td><td>1.000</td><td>1.000</td><td>1.000</td><td>1672</td><td>0</td></tr>
+<tr><td>PHONE</td><td>1.000</td><td>1.000</td><td>1.000</td><td>1367</td><td>0</td></tr>
+<tr><td>PLATE</td><td>1.000</td><td>1.000</td><td>1.000</td><td>557</td><td>0</td></tr>
+<tr><td>POSTAL</td><td>1.000</td><td>1.000</td><td>1.000</td><td>1385</td><td>0</td></tr>
+<tr><td>REGON</td><td>1.000</td><td>1.000</td><td>1.000</td><td>697</td><td>0</td></tr>
+</table>
+  <h2>Honest limits</h2>
+  <ul>
+    <li>Soft labels (PERSON / ORG / ADDRESS) are heuristic — not production NER claims.</li>
+    <li>Redaction ≠ GDPR compliance.</li>
+    <li>Live interactive demo: run locally with <code>make demo-local</code> (HF free tier blocks Gradio/Docker Spaces without PRO).</li>
+  </ul>
+  <footer>
+    <a href="https://github.com/rrudol/tt-pii-middleware">GitHub (Apache-2.0)</a> ·
+    <a href="https://huggingface.co/datasets/rafalrudol/pl-pii-synthetic-v1">Dataset</a> ·
+    <a href="https://huggingface.co/spaces/rafalrudol/pl-pii-redact-demo">Demo Space</a> ·
+    <a href="https://huggingface.co/rafalrudol/tt-pii-middleware">Model card</a>
+  </footer>
+</body>
+</html>
