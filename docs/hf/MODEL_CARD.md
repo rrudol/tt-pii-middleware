@@ -1,6 +1,5 @@
 ---
-license: other
-license_name: proprietary-pending-oss
+license: apache-2.0
 language:
   - pl
   - en
@@ -23,18 +22,16 @@ redacts or reversibly pseudonymizes them **before prompts leave the VPC**.
 
 Runtime needs **no network egress** — spaCy models are baked into the image.
 
-## What is public vs private
+## What is public
 
-| Artifact | Status | Notes |
-|---|---|---|
-| Synthetic eval corpus `PL-PII-Synthetic-v1` | **public (HF dataset)** | this repo `make corpus` |
-| Eval metrics + gates | **public** | `eval/RESULTS.md`, `eval/gates_*.json` |
-| HTTP API design + Docker recipe | **public** (when OSS license lands) | FastAPI surface |
-| Application source (`src/tt_pii_middleware`) | **proprietary today** | OSS decision pending |
-| Production deployment / LiteLLM hooks | private | customer VPC |
+| Artifact | URL |
+|---|---|
+| Source (Apache-2.0) | https://github.com/rrudol/tt-pii-middleware |
+| Dataset | https://huggingface.co/datasets/rafalrudol/pl-pii-synthetic-v1 |
+| Metrics Space | https://huggingface.co/spaces/rafalrudol/pl-pii-metrics |
+| Redact demo | https://huggingface.co/spaces/rafalrudol/pl-pii-redact-demo |
 
-Until an OSS license is chosen, treat the **dataset + metrics + API contract**
-as the public surface; the service binary stays internal.
+Production VPC deployments and customer data remain private to operators.
 
 ## Stack
 
@@ -84,6 +81,5 @@ re-identify; guard them. Logs carry entity **types/counts only**, never text.
 
 ## License
 
-Application source: proprietary (Thinking Typewriters) until OSS license is
-published. Synthetic dataset: free for eval/demo with the dataset card notice.
-spaCy / Presidio / pii-core: their respective upstream licenses.
+Apache-2.0 for this project. Synthetic dataset: same family, eval-only notice
+on the dataset card. spaCy / Presidio / pii-core: upstream licenses (MIT / Apache-2.0).
