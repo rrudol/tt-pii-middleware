@@ -1,5 +1,8 @@
 """HTTP surface: /health, /v1/analyze, /v1/redact, /v1/anonymize, /v1/restore.
 
+Also speaks Microsoft Presidio's ``POST /analyze`` + ``POST /anonymize`` so
+Bifrost guardrails (`type=presidio`) can use this service as the analyzer.
+
 Designed to sit in front of an LLM gateway (e.g. a LiteLLM pre-call hook):
 POST the prompt to /v1/redact or /v1/anonymize, forward the sanitized text
 upstream, and (for anonymize) restore the response with the returned mapping.
@@ -20,6 +23,14 @@ from pydantic import BaseModel, Field
 from tt_pii_middleware import __version__
 from tt_pii_middleware.analyzer import TT_LABELS, PiiEngine
 from tt_pii_middleware.config import Settings, get_settings
+from tt_pii_middleware.presidio_compat import (
+    PresidioAnalyzeRequest,
+    PresidioAnonymizeRequest,
+    apply_analyzer_results,
+    coerce_language,
+    map_incoming_entities,
+    spans_to_presidio,
+)
 from tt_pii_middleware.pseudo.keystore import KeystoreError, load_from_settings
 from tt_pii_middleware.pseudo.profiles import Profile, resolve_profile
 from tt_pii_middleware.pseudo.pseudonymizer import Pseudonymizer
@@ -208,6 +219,44 @@ def health(request: Request) -> dict[str, Any]:
         "labels": info["labels"],
         "redis_vault": _redis_status(request.app.state.redis),
     }
+
+
+@app.post("/analyze")
+def presidio_analyze(req: PresidioAnalyzeRequest, request: Request) -> list[dict[str, Any]]:
+    """Microsoft Presidio analyzer wire format (Bifrost `type=presidio`)."""
+    engine: PiiEngine = request.app.state.engine
+    _check_text_size(request.app.state.settings, req.text)
+    started = time.perf_counter()
+    language = coerce_language(req.language, engine.settings.default_language)
+    labels = map_incoming_entities(req.entities)
+    if req.entities and not labels:
+        return []
+    spans = engine.analyze(
+        req.text, language=language, labels=labels, threshold=req.score_threshold
+    )
+    log_event(
+        logger,
+        "presidio_analyze",
+        language=language,
+        text_chars=len(req.text),
+        entity_counts=_entity_counts(spans),
+        duration_ms=round((time.perf_counter() - started) * 1000, 1),
+    )
+    return spans_to_presidio(spans)
+
+
+@app.post("/anonymize")
+def presidio_anonymize(req: PresidioAnonymizeRequest, request: Request) -> dict[str, Any]:
+    """Microsoft Presidio anonymizer wire format (Bifrost redact with anonymizer_url)."""
+    _check_text_size(request.app.state.settings, req.text)
+    outcome = apply_analyzer_results(req.text, req.analyzer_results)
+    log_event(
+        logger,
+        "presidio_anonymize",
+        text_chars=len(req.text),
+        entity_counts=dict(Counter(item["entity_type"] for item in outcome["items"])),
+    )
+    return outcome
 
 
 @app.post("/v1/analyze", response_model=AnalyzeResponse, response_model_exclude_none=True)
