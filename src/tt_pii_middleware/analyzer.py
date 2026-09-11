@@ -205,10 +205,11 @@ def build_analyzer(settings: Settings) -> AnalyzerEngine:
 class PiiEngine:
     """One instance per process; safe to share across requests."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, pseudonymizer=None) -> None:
         self.settings = settings
         self.analyzer = build_analyzer(settings)
         self.anonymizer = AnonymizerEngine()
+        self.pseudonymizer = pseudonymizer
 
     # -- introspection (for /health) ------------------------------------
 
@@ -216,7 +217,7 @@ class PiiEngine:
         recognizer_names = sorted(
             {r.name for r in self.analyzer.registry.recognizers}
         )
-        return {
+        out: dict[str, Any] = {
             "languages": SUPPORTED_LANGUAGES,
             "models": {
                 "pl": self.settings.spacy_model,
@@ -225,6 +226,12 @@ class PiiEngine:
             "recognizers": recognizer_names,
             "labels": TT_LABELS,
         }
+        store = getattr(getattr(self, "pseudonymizer", None), "store", None)
+        if store is not None:
+            out["pseudonym"] = store.health()
+        else:
+            out["pseudonym"] = {"enabled": False}
+        return out
 
     # -- detection -------------------------------------------------------
 
@@ -314,37 +321,94 @@ class PiiEngine:
     def redact(
         self,
         text: str,
-        mode: str,
+        mode: str = "replace",
         language: str | None = None,
         labels: list[str] | None = None,
         threshold: float | None = None,
-    ) -> tuple[str, list[Span]]:
+        *,
+        profile: str | None = None,
+        purpose: str | None = None,
+        tenant_id: str | None = None,
+        key_id: str | None = None,
+        token_bytes: int | None = None,
+        strict_pseudonym: bool = False,
+        pseudonymizer=None,
+    ) -> tuple[str, list[Span], dict]:
+        """Redact or pseudonymise.
+
+        Returns ``(text, spans, meta)`` where meta carries privacy/profile stats
+        (empty for legacy replace/mask/hash).
+        """
+        from tt_pii_middleware.pseudo.profiles import Profile, resolve_profile
+        from tt_pii_middleware.pseudo.pseudonymizer import Pseudonymizer
+
+        resolved = resolve_profile(profile, mode)
         spans = self.analyze(text, language=language, labels=labels, threshold=threshold)
+
+        if resolved in {Profile.LINKABLE, Profile.LINKABLE_STRICT}:
+            engine = pseudonymizer or getattr(self, "pseudonymizer", None)
+            if engine is None:
+                engine = Pseudonymizer(None)
+            result = engine.apply(
+                text,
+                spans,
+                profile=resolved,
+                purpose=purpose or self.settings.default_pseudonym_purpose,
+                tenant_id=tenant_id or "_",
+                key_id=key_id,
+                token_bytes=token_bytes or self.settings.default_token_bytes,
+                strict_pseudonym=strict_pseudonym,
+            )
+            meta = {
+                "profile": result.profile,
+                "purpose": result.purpose,
+                "key_id": result.key_id,
+                "privacy": result.privacy,
+                "stats": result.stats,
+            }
+            return result.text, result.spans, meta
+
         results = [
             RecognizerResult(entity_type=s.label, start=s.start, end=s.end, score=s.score)
             for s in spans
         ]
-        if mode == "mask":
+        if resolved == Profile.MASK or mode == "mask":
             operators = {
                 "DEFAULT": OperatorConfig(
                     "mask",
                     {"masking_char": "*", "chars_to_mask": _MASK_ALL, "from_end": False},
                 )
             }
-        elif mode == "replace":
+            legacy_mode = "mask"
+        elif resolved == Profile.HASH or mode == "hash":
+            operators = {"DEFAULT": OperatorConfig("custom", {"lambda": self._hash_value})}
+            legacy_mode = "hash"
+        else:
             operators = {
                 label: OperatorConfig("replace", {"new_value": f"<{label}>"})
                 for label in TT_LABELS
             }
-        elif mode == "hash":
-            operators = {"DEFAULT": OperatorConfig("custom", {"lambda": self._hash_value})}
-        else:  # pydantic Literal guards the API; guard library callers too
-            raise ValueError(f"unknown redaction mode: {mode!r}")
+            legacy_mode = "replace"
 
         redacted = self.anonymizer.anonymize(
             text=text, analyzer_results=results, operators=operators
         )
-        return redacted.text, spans
+        meta = {
+            "profile": resolved.value,
+            "privacy": {
+                "classification": (
+                    "pseudonymised_personal_data"
+                    if legacy_mode == "hash"
+                    else "redacted"
+                ),
+                "linkable": legacy_mode == "hash",
+                "reversible": False,
+                "algorithm": "SHA256-salt-truncated" if legacy_mode == "hash" else legacy_mode,
+                "deprecated_hash": legacy_mode == "hash",
+            },
+            "stats": {},
+        }
+        return redacted.text, spans, meta
 
     def _hash_value(self, value: str) -> str:
         digest = hashlib.sha256(

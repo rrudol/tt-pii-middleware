@@ -149,6 +149,35 @@ curl -s localhost:8080/v1/restore -H 'content-type: application/json' -d '{
 # {"restored_text":"Napisz do jan@example.pl w sprawie 44051401359."}
 ```
 
+## Linkable pseudonyms (`profile=linkable`)
+
+Stable HMAC tokens so the same PESEL maps to the same `PESEL_v1_…` across a
+request/corpus **without** putting raw IDs in the prompt. This is
+**pseudonymised personal data** (GDPR), not anonymisation.
+
+```bash
+export PSEUDONYM_MASTER_KEY_B64="$(python -c 'import base64,os; print(base64.b64encode(os.urandom(32)).decode())')"
+export PSEUDONYM_ACTIVE_KID=v1
+
+curl -s localhost:8080/v1/redact -H 'content-type: application/json' -d '{
+  "text": "PESEL 44051401359 ... znowu 44051401359",
+  "profile": "linkable",
+  "purpose": "llm-gateway",
+  "tenant_id": "acme"
+}'
+```
+
+Profiles: `strict` (default replace), `mask`, `linkable`, `linkable_strict`
+(HMAC only on structured IDs; PERSON/ORG → `<…>`). Legacy `mode=hash` is
+deprecated. Design: [docs/design/linkable-pseudonyms.md](docs/design/linkable-pseudonyms.md).
+
+| Env | Meaning |
+|---|---|
+| `PSEUDONYM_MASTER_KEY_FILE` | Path to 32+ byte master (or base64 file) |
+| `PSEUDONYM_MASTER_KEY_B64` | Dev-only master key |
+| `PSEUDONYM_ACTIVE_KID` | Key version label in tokens (default `v1`) |
+| `PSEUDONYM_ALLOWED_PURPOSES` | Optional allow-list of purpose strings |
+
 ## Configuration
 
 | Env var | Default | Meaning |
