@@ -1,9 +1,10 @@
-# Local/CI build: context = repository root
+# Local/CI/tailnet build: context = repository root
 #   docker build -f spaces/demo/Dockerfile.local -t pl-pii-demo .
 FROM python:3.12-slim
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_CACHE_DIR=1 PYTHONUNBUFFERED=1 \
     SPACY_MODEL=pl_core_news_sm SPACY_MODEL_EN=en_core_web_sm \
-    DEFAULT_LANGUAGE=pl MAX_TEXT_LENGTH=2000 ENABLE_KRS=true
+    DEFAULT_LANGUAGE=pl MAX_TEXT_LENGTH=2000 ENABLE_KRS=true \
+    DEMO_RATE_LIMIT=30 DEMO_RATE_WINDOW_SEC=60
 WORKDIR /app
 COPY spaces/demo/requirements.txt /tmp/requirements.txt
 RUN pip install -r /tmp/requirements.txt \
@@ -12,7 +13,8 @@ RUN pip install -r /tmp/requirements.txt \
     https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
 COPY pyproject.toml README.md LICENSE NOTICE ./
 COPY src ./src
-RUN pip install .
+# Install our package without re-resolving uvicorn[standard] (conflicts with gradio).
+RUN pip install --no-deps .
 COPY spaces/demo/app.py ./app.py
 RUN useradd --create-home --uid 10001 appuser
 USER appuser
