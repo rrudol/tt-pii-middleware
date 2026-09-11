@@ -102,6 +102,28 @@ Optional fields: `language` (`"pl"` default, `"en"`), `entities` (restrict to
 TT labels), `score_threshold` (override), `include_text: false` (omit matched
 substrings from the response).
 
+### `POST /analyze` + `POST /anonymize` — Microsoft Presidio wire format
+
+Bifrost Guardrails (`type=presidio`) calls these paths. They wrap the TT engine:
+entity types in the response are **TT labels** (`PESEL`, `EMAIL`, …). Incoming
+`entities` filters accept both TT labels and Presidio names (`EMAIL_ADDRESS`,
+`PL_PESEL`, …). Default language is `pl` (not Presidio's `en`).
+
+```bash
+curl -s localhost:8080/analyze -H 'content-type: application/json' -d '{
+  "text": "PESEL 44051401359, mail jan@example.pl",
+  "language": "pl"
+}'
+# [{"entity_type":"PESEL","start":6,"end":17,"score":1.0},
+#  {"entity_type":"EMAIL","start":24,"end":38,"score":1.0}]
+
+curl -s localhost:8080/anonymize -H 'content-type: application/json' -d '{
+  "text": "PESEL 44051401359",
+  "analyzer_results": [{"entity_type":"PESEL","start":6,"end":17,"score":1.0}]
+}'
+# {"text":"PESEL <PESEL>","items":[...]}
+```
+
 ### `POST /v1/redact` — one-way redaction
 
 `mode` is `"replace"` (default), `"mask"` or `"hash"`:

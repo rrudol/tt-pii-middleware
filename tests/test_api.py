@@ -21,7 +21,7 @@ class TestHealth:
     def test_openapi_docs(self, client):
         assert client.get("/docs").status_code == 200
         paths = client.get("/openapi.json").json()["paths"]
-        assert {"/health", "/v1/analyze", "/v1/redact", "/v1/anonymize", "/v1/restore"} <= set(paths)
+        assert {"/health", "/v1/analyze", "/v1/redact", "/v1/anonymize", "/v1/restore", "/analyze", "/anonymize"} <= set(paths)
 
 
 class TestAnalyze:
@@ -122,6 +122,59 @@ class TestAnonymizeRestore:
             "/v1/restore", json={"text": "abc", "session_id": "deadbeef"}
         )
         assert response.status_code == 400
+
+
+class TestPresidioCompat:
+    def test_analyze_returns_array_with_tt_labels(self, client):
+        response = client.post(
+            "/analyze",
+            json={"text": f"PESEL {VALID_PESEL}, email jan@example.pl", "language": "pl"},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert isinstance(body, list)
+        by_type = {item["entity_type"]: item for item in body}
+        assert by_type["PESEL"]["start"] >= 0
+        assert by_type["PESEL"]["end"] - by_type["PESEL"]["start"] == len(VALID_PESEL)
+        assert by_type["EMAIL"]["score"] > 0
+        assert "label" not in body[0]
+
+    def test_analyze_maps_presidio_entity_filter(self, client):
+        response = client.post(
+            "/analyze",
+            json={
+                "text": f"PESEL {VALID_PESEL}, email jan@example.pl",
+                "entities": ["EMAIL_ADDRESS"],
+            },
+        )
+        assert {item["entity_type"] for item in response.json()} == {"EMAIL"}
+
+    def test_analyze_unknown_entities_detect_nothing(self, client):
+        response = client.post(
+            "/analyze",
+            json={"text": f"PESEL {VALID_PESEL}", "entities": ["US_SSN"]},
+        )
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_anonymize_replaces_with_tt_placeholders(self, client):
+        text = f"PESEL {VALID_PESEL} i mail jan@example.pl"
+        analyzed = client.post("/analyze", json={"text": text, "language": "pl"}).json()
+        response = client.post(
+            "/anonymize", json={"text": text, "analyzer_results": analyzed}
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert VALID_PESEL not in body["text"]
+        assert "jan@example.pl" not in body["text"]
+        assert "<PESEL>" in body["text"]
+        assert "<EMAIL>" in body["text"]
+
+    def test_anonymize_empty_results_returns_text(self, client):
+        response = client.post(
+            "/anonymize", json={"text": "brak pii", "analyzer_results": []}
+        )
+        assert response.json()["text"] == "brak pii"
 
 
 class TestLinkableProfile:
