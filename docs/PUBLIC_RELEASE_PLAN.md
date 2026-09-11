@@ -31,24 +31,27 @@ detection without leaking proprietary glue or claiming GDPR magic.
 - [x] Hardening: plate denylist, postal context, KRS↔NIP, REGON↔CARD, ORG legal form
 - [x] Dataset card + model card drafts (`docs/hf/`)
 
-## Phase 1 — HF Dataset (public, this week)
+## Phase 1 — HF Dataset ✅ shipped
 
-1. Create HF dataset repo e.g. `thinking-typewriters/pl-pii-synthetic-v1`
-   (or personal `rrudol/…` until org exists).
-2. Upload **only**:
-   - `pl_pii_v1.jsonl` (from `make corpus`)
-   - `README.md` = contents of `docs/hf/DATASET_CARD.md`
-   - `LICENSE` snippet: “synthetic evaluation data, no real PII”
-3. Pin generation command + seed in the card (reproducibility).
-4. Do **not** upload Redis dumps, production logs, or real tickets.
+**Live (public):**
+
+| Artifact | URL |
+|---|---|
+| Dataset `PL-PII-Synthetic-v1` | https://huggingface.co/datasets/rafalrudol/pl-pii-synthetic-v1 |
+| Docs-only model card | https://huggingface.co/rafalrudol/tt-pii-middleware |
+| Source / eval harness | https://github.com/rrudol/tt-pii-middleware |
+
+Contents on the dataset repo: `data/pl_pii_v1.jsonl` (n=3000, seed=42),
+`RESULTS.md`, `gates_*.json`, `GENERATION.md`, dataset card README.
+
+Re-upload after generator changes:
 
 ```bash
 make corpus
-# pip install huggingface_hub
-huggingface-cli upload thinking-typewriters/pl-pii-synthetic-v1 \
-  data/synthetic/pl_pii_v1.jsonl . \
+# HF_TOKEN from 1Password / env
+huggingface-cli upload rafalrudol/pl-pii-synthetic-v1 \
+  data/synthetic/pl_pii_v1.jsonl data/pl_pii_v1.jsonl \
   --repo-type dataset
-# then set README via web UI or `README.md` upload
 ```
 
 ## Phase 2 — Metrics Space (optional, low cost)
@@ -108,7 +111,7 @@ Before `src/` goes public:
 
 | Signal | Target |
 |---|---|
-| HF dataset live | Phase 1 done |
+| HF dataset live | ✅ https://huggingface.co/datasets/rafalrudol/pl-pii-synthetic-v1 |
 | External user reproduces micro-F1 ±0.01 | `make eval` on clean clone |
 | Zero privacy incidents | no real PII in artifact |
 | Clear upgrade path | Phase 4 ticket filed with license choice |

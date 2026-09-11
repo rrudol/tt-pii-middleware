@@ -252,9 +252,12 @@ Plan and cards:
 - [`docs/hf/DATASET_CARD.md`](docs/hf/DATASET_CARD.md) — card for `PL-PII-Synthetic-v1`
 - [`docs/hf/MODEL_CARD.md`](docs/hf/MODEL_CARD.md) — service card (claims + limitations)
 
-**Recommended first public artifact:** the synthetic dataset only (no real PII,
-reproducible, useful to others). Shipping the full service image requires an
-OSS license decision on `src/`.
+**Live on Hugging Face:**
+
+- Dataset: https://huggingface.co/datasets/rafalrudol/pl-pii-synthetic-v1
+- Model card (docs/benchmark only): https://huggingface.co/rafalrudol/tt-pii-middleware
+
+Shipping the full service image/code still requires an OSS license decision on `src/`.
 
 ## Threat model — redaction ≠ GDPR compliance
 
