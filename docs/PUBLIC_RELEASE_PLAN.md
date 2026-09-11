@@ -58,14 +58,17 @@ huggingface-cli upload rafalrudol/pl-pii-synthetic-v1 \
 
 - Source: `spaces/metrics/`
 - Live: https://huggingface.co/spaces/rafalrudol/pl-pii-metrics
-- Static Gradio: embedded `RESULTS.md`, no model load, no user text.
+- Implemented as **HF Static Space** (free tier). Gradio `app.py` kept for local runs.
+- HF returns **402 PRO required** for Gradio/Docker Space creation on free accounts.
 
 ## Phase 3 — Interactive demo ✅ shipped (guardrailed)
 
 - Source: `spaces/demo/` (Docker SDK, `pl_core_news_sm`)
 - Live: https://huggingface.co/spaces/rafalrudol/pl-pii-redact-demo
-- Guardrails: max 2000 chars, 20 req/IP/min, **redact-only** (no mapping),
-  entity-type logs only, synthetic UI examples.
+- Public Space = **static showcase** (precomputed synthetic before/after).
+- Interactive path: `spaces/demo/app.py` + `make demo-local` (Docker),
+  guardrails max 2000 chars / 20 req/IP/min / redact-only.
+- Upgrade to live Gradio/Docker Space when HF PRO or self-hosted GPU/CPU is available.
 
 ## Phase 4 — OSS the service ✅ shipped
 

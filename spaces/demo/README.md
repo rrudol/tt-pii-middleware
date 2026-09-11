@@ -3,8 +3,7 @@ title: PL-PII Redact Demo
 emoji: 🔒
 colorFrom: green
 colorTo: blue
-sdk: docker
-app_port: 7860
+sdk: static
 pinned: false
 license: apache-2.0
 suggested_hardware: cpu-basic
@@ -31,3 +30,6 @@ Interactive **one-way redaction** for Polish + universal PII.
 - Synthetic examples only in the UI presets
 
 Do **not** paste real production PII. This is a demo, not a compliance product.
+
+
+> **Hosting note:** HF free tier blocks Gradio/Docker Spaces. The public Space is a **static showcase** of precomputed synthetic redactions. Interactive UI: `make demo-local` or Gradio `app.py` under Docker when you have HF PRO / self-hosting.

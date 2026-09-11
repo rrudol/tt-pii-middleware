@@ -3,6 +3,19 @@
 Shipped in v0.1.0-public: Polish PII middleware, synthetic eval suite, HF dataset,
 metrics Space, guardrailed redact demo, Apache-2.0.
 
+## Phase 5+ backlog (planned next)
+
+Ordered for the next public cycle after v0.1.0-public:
+
+1. **HF PRO or self-host live demo** — promote static showcase → real Gradio/Docker Space with rate limits.
+2. **GHCR multi-arch image** — `ghcr.io/rrudol/tt-pii-middleware:0.1.0` (amd64/arm64), SBOM, cosign.
+3. **CI badge + release automation** — tag → build → push image → refresh Spaces.
+4. **Org namespace** — transfer GH/HF artifacts to `thinking-typewriters` when org is ready.
+5. **Passport checksum + adversarial eval pack** — close known gaps, publish residual-risk numbers.
+6. **LiteLLM plugin package** — installable callback, not just README sketch.
+7. **Optional GLiNER extra** — `pip install tt-pii-middleware[gliner]`.
+8. **Human-licensed PL eval slice** — small consented set; keep synthetic as regression.
+
 ## Now / next (P0 — 1–2 weeks)
 
 | Item | Why | Notes |
