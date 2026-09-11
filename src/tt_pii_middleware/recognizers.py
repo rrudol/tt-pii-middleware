@@ -114,16 +114,36 @@ class PlPhoneRecognizer(PatternRecognizer):
         )
 
 
+# Standards / catalogue codes that share the plate letter shape and must never
+# be reported as vehicle plates (synthetic eval + real invoices).
+# Only block prefixes that are *not* real PL district codes. Two-letter
+# denylist entries like PO/WO/TO/FA would false-negative real plates
+# (Poznań, Warszawa-ochota, Toruń, …). Bare standards codes ("PN 12345")
+# stay under threshold via base score 0.3 + missing vehicle context.
+_PLATE_PREFIX_DENYLIST = {
+    "ISO", "DIN", "IEC", "AST", "ANSI", "SKU", "VAT", "NIP", "REG", "KRS",
+    "REF", "UE", "UN", "ID",
+}
+
+
+def _plate_prefix_denied(pattern_text: str) -> bool:
+    compact = pattern_text.replace(" ", "")
+    return compact[:2] in _PLATE_PREFIX_DENYLIST or compact[:3] in _PLATE_PREFIX_DENYLIST
+
+
 class PlPlateRecognizer(PatternRecognizer):
     """Polish vehicle registration plates, e.g. ``WW 12345``, ``KR 1A234``.
 
     FP risk (documented): the shape "2-3 uppercase letters + 4-5
     alphanumerics" collides with standard references ("PN 12345"),
-    invoice/serial numbers and similar codes. Mitigations baked in: the
-    first letter must be a valid voivodeship letter, the suffix must
-    contain a digit and may only use the letters actually issued on plates
-    (no B/D/I/O/Q/Z), matching is case-sensitive, and score stays at 0.4
-    so a raised SCORE_THRESHOLD drops plates without context.
+    invoice/serial numbers and similar codes. Mitigations: voivodeship
+    first letter, plate-legal suffix alphabet, case-sensitive match,
+    denylist of standards prefixes (PN/EN/ISO/...), and base score 0.3 so
+    bare plates need context ("tablica", "rej.", ...) to cross 0.4.
+
+    Note: we deliberately do **not** implement validate_result — Presidio
+    promotes any True validation to score 1.0, which would defeat the
+    context gate. Denylist drops happen in analyze instead.
     """
 
     def __init__(self, supported_language: str) -> None:
@@ -137,24 +157,48 @@ class PlPlateRecognizer(PatternRecognizer):
                     r"\b[BCDEFGKLNOPRSTWZ][A-PR-Z]{1,2} ?"
                     r"(?=[0-9ACEFGHJKLMNPRSTUVWXY]{0,4}\d)"
                     r"[0-9ACEFGHJKLMNPRSTUVWXY]{4,5}\b",
-                    0.4,
+                    0.3,
                 )
             ],
-            context=["rejestracyjny", "rejestracyjne", "tablica", "tablice", "pojazd", "samochód", "auto", "rej"],
+            context=[
+                "rejestracyjny", "rejestracyjne", "tablica", "tablice",
+                "pojazd", "samochód", "auto", "rej", "rej.", "nr rej",
+            ],
             global_regex_flags=_CASE_SENSITIVE,
         )
 
+    def analyze(self, text, entities, nlp_artifacts=None, regex_flags=None):  # noqa: ANN001
+        results = super().analyze(
+            text, entities, nlp_artifacts=nlp_artifacts, regex_flags=regex_flags
+        )
+        kept = []
+        for result in results:
+            candidate = text[result.start : result.end]
+            if _plate_prefix_denied(candidate):
+                continue
+            kept.append(result)
+        return kept
+
 
 class PlPostalCodeRecognizer(PatternRecognizer):
-    """Polish postal code ``XX-XXX``. FP risk: numeric ranges ("10-100")."""
+    """Polish postal code ``XX-XXX``.
+
+    FP risk: numeric ranges ("10-100"). Base score 0.3 stays under the
+    default 0.4 threshold unless address/postal context is nearby; the
+    common templates always provide that context ("adres:", city name).
+    """
 
     def __init__(self, supported_language: str) -> None:
         super().__init__(
             supported_entity="PL_POSTAL_CODE",
             name="PlPostalCodeRecognizer",
             supported_language=supported_language,
-            patterns=[Pattern("pl_postal_code", r"\b\d{2}-\d{3}\b", 0.5)],
-            context=["kod", "pocztowy", "adres", "ul", "ulica", "mieszka", "zamieszkania"],
+            patterns=[Pattern("pl_postal_code", r"\b\d{2}-\d{3}\b", 0.3)],
+            context=[
+                "pocztowy", "adres", "ul", "ul.", "ulica", "al.", "os.",
+                "mieszka", "zamieszkania", "korespondencji", "zamieszkały",
+                "zamieszkała",
+            ],
         )
 
 
@@ -248,6 +292,35 @@ _PII_CORE_SPECS = [
 _SPACY_ENTITIES = ["PERSON", "ORGANIZATION", "LOCATION", "DATE_TIME"]
 
 
+
+class PlOrgRecognizer(PatternRecognizer):
+    """Polish company legal forms: Sp. z o.o., S.A., sp.j., etc.
+
+    spaCy ORG recall on synthetic company names is near-zero; this pattern
+    catches the legal-form tail so invoice/CRM templates get an ORG span.
+    """
+
+    def __init__(self, supported_language: str) -> None:
+        name_char = r"[\p{L}0-9&.'\-]"
+        company = (
+            rf"\b\p{{Lu}}{name_char}{{1,40}}?"
+            rf"(?:\s+\p{{Lu}}{name_char}{{1,30}}){{0,4}}"
+            r"\s+(?:Sp(?:ólka|\.)\s+z\s*o\.?\s*o\.?"
+            r"|S\.?A\.?"
+            r"|sp\.?\s*j\.?"
+            r"|sp\.?\s*k\.?"
+            r"|Sp\.\s*k\.)"
+        )
+        super().__init__(
+            supported_entity="ORGANIZATION",
+            name="PlOrgRecognizer",
+            supported_language=supported_language,
+            patterns=[Pattern("pl_company_legal_form", company, 0.7)],
+            context=["firma", "sprzedawca", "nabywca", "spółka", "company", "regon", "nip"],
+            global_regex_flags=_CASE_SENSITIVE,
+        )
+
+
 def build_recognizers(language: str, settings: Settings) -> list[PatternRecognizer | SpacyRecognizer]:
     """All recognizers for one language, ready for a RecognizerRegistry."""
     recognizers: list[PatternRecognizer | SpacyRecognizer] = [
@@ -261,6 +334,7 @@ def build_recognizers(language: str, settings: Settings) -> list[PatternRecogniz
         PlPostalCodeRecognizer(language),
         PlAddressRecognizer(language),
         PlDobRecognizer(language),
+        PlOrgRecognizer(language),
         IbanRecognizer(supported_language=language, context=["iban", "konto", "rachunek", "account", "bank"]),
         SpacyRecognizer(supported_language=language, supported_entities=list(_SPACY_ENTITIES)),
     ]

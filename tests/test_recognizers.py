@@ -112,6 +112,16 @@ class TestContextGatedAndRegexRecognizers:
         assert found["PASSPORT"] == ["AA1234567"]
 
 
+class TestOrgLegalForm:
+    def test_sp_zoo(self, engine):
+        found = labels_of(engine, "Sprzedawca: Sigma Consulting Sp. z o.o.")
+        assert any("Sp. z o.o." in x for x in found.get("ORG", []))
+
+    def test_sa(self, engine):
+        found = labels_of(engine, "Nabywca: Beta S.A. z siedzibą w Warszawie")
+        assert any("S.A." in x for x in found.get("ORG", []))
+
+
 class TestNerEntities:
     def test_person_polish(self, engine):
         found = labels_of(engine, "Sprawę prowadzi Jan Kowalski z Krakowa.")
@@ -134,10 +144,32 @@ class TestEngineBehaviour:
         assert set(found) == {"PESEL"}
 
     def test_threshold_override(self, engine):
-        # PLATE sits at 0.4 without context; a raised threshold drops it.
+        # Bare plate score stays under default threshold without vehicle context.
         text = "kod WW 12345"
-        assert "PLATE" in labels_of(engine, text)
-        assert "PLATE" not in labels_of(engine, text, threshold=0.6)
+        assert "PLATE" not in labels_of(engine, text)
+        assert "PLATE" in labels_of(engine, "tablica rejestracyjna WW 12345")
+
+    def test_plate_standards_prefix_rejected(self, engine):
+        assert "PLATE" not in labels_of(engine, "kod produktu PN 12345")
+        assert "PLATE" not in labels_of(engine, "norma EN 16001")
+
+    def test_postal_range_without_context_rejected(self, engine):
+        assert "POSTAL" not in labels_of(engine, "zakres 10-100 szt.")
+        assert labels_of(engine, "adres: 00-950 Warszawa")["POSTAL"] == ["00-950"]
+
+    def test_krs_beats_nip_with_context(self, engine):
+        # 10 digits that happen to look NIP-shaped still resolve to KRS when
+        # the keyword is present (overlap disambiguation).
+        found = labels_of(engine, "wpis KRS 0000123456 w rejestrze")
+        assert found.get("KRS") == ["0000123456"]
+        assert "NIP" not in found
+
+    def test_regon14_not_swallowed_by_card(self, engine):
+        from tests.test_checksums import VALID_REGON14
+
+        found = labels_of(engine, f"REGON {VALID_REGON14}")
+        assert found.get("REGON") == [VALID_REGON14]
+        assert "CARD" not in found
 
     def test_spans_do_not_overlap(self, engine):
         text = f"NIP {VALID_NIP} tel 601 234 567, ul. Długa 5, 00-950 Warszawa"

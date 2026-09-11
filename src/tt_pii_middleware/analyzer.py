@@ -64,6 +64,32 @@ _MASK_ALL = 1_000_000  # > any allowed text length, so the whole span is masked
 # tends to get "KRS" tagged as an organization) carry no PII themselves.
 _NER_KEYWORD_DENYLIST = {"PESEL", "NIP", "REGON", "KRS", "IBAN", "VAT", "DOWÓD", "DOWOD"}
 
+# When two checksum/pattern labels claim the same digits, prefer the one whose
+# keyword appears in a short window before the span (KRS vs NIP, REGON vs CARD).
+_CONTEXT_HINTS: dict[str, tuple[str, ...]] = {
+    "KRS": ("krs",),
+    "NIP": ("nip", "vat", "podatkowy"),
+    "REGON": ("regon",),
+    "CARD": ("karta", "card", "credit", "płatnicza", "platnicza", "visa", "mastercard"),
+    "PESEL": ("pesel",),
+    "IBAN": ("iban", "konto", "rachunek", "account", "przelew"),
+    "POSTAL": ("kod pocztowy", "pocztowy", "adres", "ul.", "ulica", "al.", "os.", "zamieszka"),
+    "PLATE": ("tablica", "rejestracyjn", "pojazd", "samochód", "auto", "rej."),
+}
+_CONTEXT_WINDOW = 48
+
+# spaCy LOCATION/PERSON often latches onto IBAN/PESEL-shaped tokens; drop those.
+_ID_SHAPED = re.compile(
+    r"^(?:"
+    r"PL\d{2}\d{24}"  # IBAN compact
+    r"|\d{11}"  # PESEL
+    r"|\d{10}"  # NIP / KRS
+    r"|\d{9}(?:\d{5})?"  # REGON 9/14
+    r"|[A-Z]{3}\d{6}"  # DOWOD
+    r")$",
+    re.IGNORECASE,
+)
+
 
 @dataclass
 class Span:
@@ -92,6 +118,27 @@ class Span:
 def _has_birth_context(text: str, start: int) -> bool:
     window = text[max(0, start - _BIRTH_WINDOW) : start]
     return _BIRTH_CONTEXT.search(window) is not None
+
+
+def _has_label_context(text: str, start: int, label: str) -> bool:
+    hints = _CONTEXT_HINTS.get(label)
+    if not hints:
+        return False
+    window = text[max(0, start - _CONTEXT_WINDOW) : start].lower()
+    return any(h in window for h in hints)
+
+
+def _context_boost(text: str, start: int, label: str) -> float:
+    """Return a small score bump when a label-specific keyword precedes the span."""
+    return 0.25 if _has_label_context(text, start, label) else 0.0
+
+
+# "00-950 Warszawa" — city name right after a postal code is strong evidence.
+_POSTAL_CITY_AFTER = re.compile(r"^\s+[A-ZĄĆĘŁŃÓŚŹŻ][A-Za-ząćęłńóśźżĄĆĘŁŃÓŚŹŻ-]{1,}")
+
+
+def _postal_city_boost(text: str, end: int) -> float:
+    return 0.25 if _POSTAL_CITY_AFTER.match(text[end : end + 40]) else 0.0
 
 
 def _dedupe(spans: list[Span]) -> list[Span]:
@@ -209,13 +256,45 @@ class PiiEngine:
                 else "pattern"
             )
             span_text = text[result.start : result.end]
-            if source == "ner" and span_text.strip(" .,:;").upper() in _NER_KEYWORD_DENYLIST:
+            stripped = span_text.strip(" .,:;")
+            if source == "ner" and stripped.upper() in _NER_KEYWORD_DENYLIST:
+                continue
+            # Drop NER spans that are clearly identifier-shaped (IBAN/PESEL/…).
+            if source == "ner" and _ID_SHAPED.match(stripped.replace(" ", "")):
                 continue
             score = result.score
             if tt_label == "DOB":
                 if not _has_birth_context(text, result.start):
                     continue
                 score = max(score, 0.6)
+            # Keyword context disambiguates colliding 10/14-digit identifiers
+            # (KRS↔NIP, REGON↔CARD) before overlap resolution.
+            has_ctx = _has_label_context(text, result.start, tt_label)
+            score = min(score + (0.25 if has_ctx else 0.0), 1.0)
+            if tt_label == "POSTAL":
+                score = min(score + _postal_city_boost(text, result.end), 1.0)
+                # "kod produktu" / bare ranges: keep only with real address evidence
+                if not has_ctx and _postal_city_boost(text, result.end) == 0.0:
+                    # still allow if street prefix appears a bit further back
+                    back = text[max(0, result.start - 80) : result.start].lower()
+                    if not any(tok in back for tok in ("ul.", "ulica", "al.", "os.", "adres", "poczt")):
+                        continue
+            # Continuous 13-16 digit runs without card context are usually REGON/other IDs
+            if tt_label == "CARD":
+                compact = span_text.replace(" ", "").replace("-", "")
+                if (" " not in span_text and "-" not in span_text) and not has_ctx:
+                    continue
+                if len(compact) == 14 and _has_label_context(text, result.start, "REGON"):
+                    continue
+            # Bare checksum-valid NIP/REGON without keyword: keep score but do not
+            # invent them from random digit runs in noise — require context OR
+            # hyphenated/formatted form (invoices write "NIP: …").
+            if tt_label in {"NIP", "REGON"} and not has_ctx:
+                # Hyphenated NIP (xxx-xxx-xx-xx) is distinctive enough.
+                if tt_label == "NIP" and "-" in span_text:
+                    pass
+                else:
+                    continue
             if score < threshold:
                 continue
             spans.append(

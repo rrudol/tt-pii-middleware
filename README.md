@@ -198,10 +198,11 @@ denylist dropping NER spans that are just identifier keywords ("KRS", "NIP").
 
 - **PLATE**: the "2–3 letters + 4–5 alphanumerics" shape collides with
   standard references ("PN 12345"), invoice and serial numbers. Mitigations:
-  case-sensitive matching, first letter restricted to voivodeship letters,
-  suffix restricted to plate-legal letters (no B/D/I/O/Q/Z) with ≥ 1 digit,
-  score capped at 0.4 so raising `SCORE_THRESHOLD` drops uncontexted plates.
-- **POSTAL**: `XX-XXX` also matches numeric ranges ("10-100").
+  case-sensitive matching, voivodeship first letter, plate-legal suffix
+  alphabet, **standards-prefix denylist** (PN/EN/ISO/…), base score 0.3 so
+  bare plates need vehicle context ("tablica", "rej.") to cross 0.4.
+- **POSTAL**: `XX-XXX` also matches numeric ranges ("10-100"). Base score 0.3
+  plus address/city context; bare ranges are dropped.
 - **KRS**: 10 digits with **no checksum** — that's why it is opt-in and
   context-gated (a bare 10-digit number is more often a NIP or nothing).
 - **ADDRESS**: street regex covers the common `ul. Nazwa 12/3` shape; streets
@@ -215,9 +216,45 @@ denylist dropping NER spans that are just identifier keywords ("KRS", "NIP").
 ### Remaining gaps / next steps
 
 - **GLiNER** (or another transformer NER) as an optional second NER pass to
-  lift PERSON/ORG/ADDRESS recall — deliberately out of scope for v0.1.
+  lift PERSON recall further — legal-form ORG pattern covers `Sp. z o.o.` / `S.A.`
+  in v0.1.1; free-form org names remain approximate.
 - Passport checksum validation (currently regex + context, matching eval).
 - Cross-request pseudonym consistency (mapping is request-scoped by design).
+- Public Hugging Face dataset + optional demo Space — see
+  [`docs/PUBLIC_RELEASE_PLAN.md`](docs/PUBLIC_RELEASE_PLAN.md).
+
+## Synthetic evaluation (Polish docs)
+
+Reproducible exact-span suite (checksum-valid synthetic IDs only):
+
+```bash
+make corpus        # data/synthetic/pl_pii_v1.jsonl  (n=3000, seed=42)
+make eval          # MVP gates  → eval/results/latest.json
+make eval-public   # public claim set (no soft NER labels)
+```
+
+Headline numbers (seed=42, n=3000, ~30 ms/doc on Apple Silicon):
+
+| bucket | micro F1 |
+|---|---:|
+| All labels | **0.955** |
+| Public claim set (PESEL/NIP/REGON/IBAN/DOWOD/CARD/EMAIL/PHONE/POSTAL/PLATE/PASSPORT/KRS/DOB) | **≥ 0.99** |
+| Invalid checksum false positives | **0** |
+
+Per-label table: [`eval/RESULTS.md`](eval/RESULTS.md). Gates:
+`eval/gates_mvp.json`, `eval/gates_public.json`.
+
+## Public release (Hugging Face)
+
+Plan and cards:
+
+- [`docs/PUBLIC_RELEASE_PLAN.md`](docs/PUBLIC_RELEASE_PLAN.md) — phased HF dataset → Space → OSS
+- [`docs/hf/DATASET_CARD.md`](docs/hf/DATASET_CARD.md) — card for `PL-PII-Synthetic-v1`
+- [`docs/hf/MODEL_CARD.md`](docs/hf/MODEL_CARD.md) — service card (claims + limitations)
+
+**Recommended first public artifact:** the synthetic dataset only (no real PII,
+reproducible, useful to others). Shipping the full service image requires an
+OSS license decision on `src/`.
 
 ## Threat model — redaction ≠ GDPR compliance
 
@@ -270,14 +307,15 @@ async def async_pre_call_hook(user_api_key_dict, cache, data, call_type):
 ## Tests
 
 ```bash
-make test
+make test          # unit + API (synthetic IDs only)
+make eval          # 3000-doc exact-span suite + quality gates
 ```
 
-Covers: DOWOD/PESEL/NIP/REGON/IBAN/Luhn checksums (valid + invalid), sample
-Polish strings for every label, all phone formats, KRS/DOB context gating,
-overlap dedupe, redact modes, anonymize/restore round-trip, request
-validation (bad language/entities/mode, oversized text) and `/health`.
-No real PII appears anywhere in the test suite.
+Unit/API covers: DOWOD/PESEL/NIP/REGON/IBAN/Luhn checksums (valid + invalid),
+sample Polish strings for every label, phone formats, KRS/DOB/PLATE/POSTAL
+context gating, standards-prefix plate rejection, REGON↔CARD / KRS↔NIP
+disambiguation, overlap dedupe, redact modes, anonymize/restore round-trip,
+request validation and `/health`. No real PII appears anywhere in the suite.
 
 ## License
 
