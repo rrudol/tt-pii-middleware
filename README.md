@@ -331,8 +331,8 @@ Interactive redact-only UI is hosted **inside the tailnet** (not public internet
 
 | | |
 |---|---|
-| URL | http://radium-226-ovh:7860 |
-| IP | http://100.87.100.111:7860 |
+| URL | https://guard.rudol.dev |
+| IP | https://guard.rudol.dev (or http://100.87.100.111:7860) |
 | MagicDNS | http://radium-226-ovh.taila403e3.ts.net:7860 |
 | Deploy | `make demo-tailnet-deploy` / `deploy/tailnet/README.md` |
 
