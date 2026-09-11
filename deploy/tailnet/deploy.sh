@@ -30,7 +30,7 @@ docker compose -f deploy/tailnet/docker-compose.yml up -d --build
 
 echo "==> waiting for health"
 for i in \$(seq 1 40); do
-  if curl -fsS "http://127.0.0.1:7860/" >/dev/null 2>&1; then
+  if curl -fsS "http://127.0.0.1:7860/health" >/dev/null 2>&1; then
     echo "healthy"
     break
   fi
