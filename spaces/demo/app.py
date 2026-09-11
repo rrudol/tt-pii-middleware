@@ -90,21 +90,23 @@ def redact(text: str, mode: str, request: gr.Request | None = None) -> tuple[str
 
 
 INTRO = f"""
-# Polish PII redaction demo
+# Polish PII redaction demo (tailnet)
 
-Self-hosted stack (Presidio + pii-core + spaCy) with **Polish** identifiers:
+Self-hosted stack (Presidio + pii-core + spaCy) — **Polish** identifiers:
 PESEL, NIP, REGON, DOWOD, IBAN, plates, phones, …
 
 ## Guardrails
 - max **{MAX_CHARS}** characters
 - **{RATE_LIMIT}** requests / IP / {int(RATE_WINDOW)}s
-- **redact only** (no `/anonymize` mapping)
+- **redact only** (no reversible mapping)
 - model: `{_settings.spacy_model}` (CPU)
+- bound to Tailscale only on the server (not the public internet)
 
-Synthetic examples only. Redaction ≠ GDPR compliance.
-Benchmark: [metrics Space](https://huggingface.co/spaces/rafalrudol/pl-pii-metrics) ·
-[dataset](https://huggingface.co/datasets/rafalrudol/pl-pii-synthetic-v1) ·
-[source](https://github.com/rrudol/tt-pii-middleware)
+Synthetic examples only. **Do not paste real production PII.**
+Redaction ≠ GDPR compliance.
+
+Source: https://github.com/rrudol/tt-pii-middleware ·
+Dataset: https://huggingface.co/datasets/rafalrudol/pl-pii-synthetic-v1
 """
 
 with gr.Blocks(title="PL-PII Redact Demo") as demo:

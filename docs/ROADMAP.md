@@ -7,7 +7,8 @@ metrics Space, guardrailed redact demo, Apache-2.0.
 
 Ordered for the next public cycle after v0.1.0-public:
 
-1. **HF PRO or self-host live demo** — promote static showcase → real Gradio/Docker Space with rate limits.
+1. **Tailnet demo (done / maintain)** — `deploy/tailnet` on radium-226-ovh; no HF Spaces dependency.
+1b. ~~HF live Space~~ — declined; free tier blocks Gradio/Docker (402 PRO).
 2. **GHCR multi-arch image** — `ghcr.io/rrudol/tt-pii-middleware:0.1.0` (amd64/arm64), SBOM, cosign.
 3. **CI badge + release automation** — tag → build → push image → refresh Spaces.
 4. **Org namespace** — transfer GH/HF artifacts to `thinking-typewriters` when org is ready.

@@ -325,14 +325,26 @@ Third-party inventory: [docs/LICENSE_AUDIT.md](docs/LICENSE_AUDIT.md).
 Copyright 2026 Thinking Typewriters and contributors
 ```
 
-## Hugging Face
+## Demo (Tailscale tailnet)
+
+Interactive redact-only UI is hosted **inside the tailnet** (not public internet):
+
+| | |
+|---|---|
+| URL | http://radium-226-ovh:7860 |
+| IP | http://100.87.100.111:7860 |
+| MagicDNS | http://radium-226-ovh.taila403e3.ts.net:7860 |
+| Deploy | `make demo-tailnet-deploy` / `deploy/tailnet/README.md` |
+
+Local Docker: `make demo-local`.
+
+## Public artifacts
 
 | Artifact | URL |
 |---|---|
-| Dataset `pl-pii-synthetic-v1` | https://huggingface.co/datasets/rafalrudol/pl-pii-synthetic-v1 |
-| Metrics Space | https://huggingface.co/spaces/rafalrudol/pl-pii-metrics |
-| Redact demo (guardrailed) | https://huggingface.co/spaces/rafalrudol/pl-pii-redact-demo |
-| Model card | https://huggingface.co/rafalrudol/tt-pii-middleware |
+| Source (Apache-2.0) | https://github.com/rrudol/tt-pii-middleware |
+| Synthetic dataset | https://huggingface.co/datasets/rafalrudol/pl-pii-synthetic-v1 |
+| Release | https://github.com/rrudol/tt-pii-middleware/releases/tag/v0.1.0-public |
 
 ## Roadmap
 

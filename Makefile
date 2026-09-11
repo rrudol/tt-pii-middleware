@@ -55,3 +55,6 @@ clean:
 demo-local:  ## build & run guardrailed Gradio demo locally (Docker)
 	docker build -f spaces/demo/Dockerfile.local -t pl-pii-demo:local .
 	docker run --rm -p 7860:7860 pl-pii-demo:local
+
+demo-tailnet-deploy:  ## build & deploy redact demo on tailnet host (radium-226-ovh)
+	./deploy/tailnet/deploy.sh
