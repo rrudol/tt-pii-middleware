@@ -3,6 +3,12 @@
 Shipped in v0.1.0-public: Polish PII middleware, synthetic eval suite, HF dataset,
 metrics Space, guardrailed redact demo, Apache-2.0.
 
+## Design ready (not implemented)
+
+- **Linkable pseudonyms (HMAC-HKDF):** [docs/design/linkable-pseudonyms.md](design/linkable-pseudonyms.md)
+  + [ADR 0002](adr/0002-linkable-pseudonyms.md) — production-grade “same PESEL → same token”
+  without claiming anonymisation. Next coding milestone when scheduled.
+
 ## Phase 5+ backlog (planned next)
 
 Ordered for the next public cycle after v0.1.0-public:
