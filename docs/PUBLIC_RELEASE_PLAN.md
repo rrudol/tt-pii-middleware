@@ -12,7 +12,7 @@ detection without leaking proprietary glue or claiming GDPR magic.
 | **C. Full OSS service** | Apache-2.0/MIT on `src/` + Docker | 2–3 d (license audit of pii-core) | license + support | After legal OK |
 | **D. Model weights only** | Fine-tuned GLiNER/XLM-R | 1–2 w | high (quality, misuse) | Later, optional |
 
-**MVP public package = A**, with B as the marketing surface once A is live.
+**Shipped: A + B + C.** (D = fine-tuned weights — still optional, see ROADMAP.)
 
 ## Why not “just put the Docker image on HF”?
 
@@ -54,33 +54,27 @@ huggingface-cli upload rafalrudol/pl-pii-synthetic-v1 \
   --repo-type dataset
 ```
 
-## Phase 2 — Metrics Space (optional, low cost)
+## Phase 2 — Metrics Space ✅ shipped
 
-Static Space: render `eval/RESULTS.md` + allow visitors to **download** the
-dataset and run `scripts/eval_corpus.py` locally against **their** detector.
-No GPU, no always-on Presidio process.
+- Source: `spaces/metrics/`
+- Live: https://huggingface.co/spaces/rafalrudol/pl-pii-metrics
+- Static Gradio: embedded `RESULTS.md`, no model load, no user text.
 
-## Phase 3 — Interactive demo (only with guardrails)
+## Phase 3 — Interactive demo ✅ shipped (guardrailed)
 
-If we want a live “paste text → redacted” demo:
+- Source: `spaces/demo/` (Docker SDK, `pl_core_news_sm`)
+- Live: https://huggingface.co/spaces/rafalrudol/pl-pii-redact-demo
+- Guardrails: max 2000 chars, 20 req/IP/min, **redact-only** (no mapping),
+  entity-type logs only, synthetic UI examples.
 
-- Use `pl_core_news_sm` on Space CPU **or** call a private backend with:
-  - auth token / waiting room
-  - `MAX_TEXT_LENGTH=2000`
-  - per-IP rate limit
-  - no `/v1/anonymize` mapping returned (redact-only)
-  - abuse monitoring
-- Publish **API contract + example curls** in the model card, not unrestricted access.
+## Phase 4 — OSS the service ✅ shipped
 
-## Phase 4 — OSS the service (legal gate)
+- License: **Apache-2.0** (`LICENSE`, `NOTICE`, `pyproject.toml`)
+- Audit: `docs/LICENSE_AUDIT.md` (pii-toolkit A2.0, Presidio/spaCy/FastAPI MIT)
+- GitHub repo set **public**
+- Tag: `v0.1.0-public`
+- Next packaging (GHCR) tracked in `docs/ROADMAP.md`
 
-Before `src/` goes public:
-
-1. License audit: `pii-core`, `pii-presidio`, `pii-veil`, Presidio, spaCy.
-2. Choose MIT or Apache-2.0; update `NOTICE`, `pyproject.toml`, README badge.
-3. Strip internal LiteLLM / VPC runbooks if any secrets remain.
-4. Tag `v0.1.0-public`, push GHCR image `ghcr.io/…/tt-pii-middleware:0.1.0`.
-5. Point model card `library_name` / links at the OSS repo.
 
 ## What we will claim publicly (allowed)
 
@@ -100,12 +94,12 @@ Before `src/` goes public:
 
 ## Oracle / review checklist before push to HF
 
-- [ ] Dataset contains **only** synthetic values (spot-check 50 random docs)
-- [ ] No employee names, real NIP/PESEL, customer emails
-- [ ] Card states matching policy (exact span) and limitations
-- [ ] Gates green: `make eval` && `make eval-public`
-- [ ] License text matches what legal approved
-- [ ] README links dataset ↔ metrics ↔ (optional) Space
+- [x] Dataset contains **only** synthetic values (spot-check 50 random docs)
+- [x] No employee names, real NIP/PESEL, customer emails
+- [x] Card states matching policy (exact span) and limitations
+- [x] Gates green: `make eval` && `make eval-public`
+- [x] License text matches audit (`docs/LICENSE_AUDIT.md`); Apache-2.0 chosen
+- [x] README links dataset ↔ metrics ↔ demo Space ↔ metrics ↔ (optional) Space
 
 ## Success criteria
 
@@ -114,4 +108,4 @@ Before `src/` goes public:
 | HF dataset live | ✅ https://huggingface.co/datasets/rafalrudol/pl-pii-synthetic-v1 |
 | External user reproduces micro-F1 ±0.01 | `make eval` on clean clone |
 | Zero privacy incidents | no real PII in artifact |
-| Clear upgrade path | Phase 4 ticket filed with license choice |
+| Clear upgrade path | ✅ Apache-2.0 + `docs/ROADMAP.md` |

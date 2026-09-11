@@ -252,12 +252,8 @@ Plan and cards:
 - [`docs/hf/DATASET_CARD.md`](docs/hf/DATASET_CARD.md) — card for `PL-PII-Synthetic-v1`
 - [`docs/hf/MODEL_CARD.md`](docs/hf/MODEL_CARD.md) — service card (claims + limitations)
 
-**Live on Hugging Face:**
-
-- Dataset: https://huggingface.co/datasets/rafalrudol/pl-pii-synthetic-v1
-- Model card (docs/benchmark only): https://huggingface.co/rafalrudol/tt-pii-middleware
-
-Shipping the full service image/code still requires an OSS license decision on `src/`.
+**Live on Hugging Face** — dataset, metrics Space, and guardrailed redact demo
+(links in the table under [Hugging Face](#hugging-face)). Source is Apache-2.0.
 
 ## Threat model — redaction ≠ GDPR compliance
 
@@ -322,5 +318,23 @@ request validation and `/health`. No real PII appears anywhere in the suite.
 
 ## License
 
-Proprietary — Copyright (c) 2026 Thinking Typewriters. All rights reserved.
-See [NOTICE](NOTICE).
+**Apache License 2.0** — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+Third-party inventory: [docs/LICENSE_AUDIT.md](docs/LICENSE_AUDIT.md).
+
+```text
+Copyright 2026 Thinking Typewriters and contributors
+```
+
+## Hugging Face
+
+| Artifact | URL |
+|---|---|
+| Dataset `pl-pii-synthetic-v1` | https://huggingface.co/datasets/rafalrudol/pl-pii-synthetic-v1 |
+| Metrics Space | https://huggingface.co/spaces/rafalrudol/pl-pii-metrics |
+| Redact demo (guardrailed) | https://huggingface.co/spaces/rafalrudol/pl-pii-redact-demo |
+| Model card | https://huggingface.co/rafalrudol/tt-pii-middleware |
+
+## Roadmap
+
+See [docs/ROADMAP.md](docs/ROADMAP.md) for post-v0.1 work (GLiNER, passport checksum,
+cross-request vault, multi-lang, HF org transfer).

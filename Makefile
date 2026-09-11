@@ -12,7 +12,7 @@ EVAL_OUT ?= eval/results/latest.json
 GATES_MVP ?= eval/gates_mvp.json
 GATES_PUBLIC ?= eval/gates_public.json
 
-.PHONY: install test run docker-build docker-up clean corpus eval eval-public smoke
+.PHONY: install test run docker-build docker-up clean corpus eval eval-public smoke demo-local
 
 $(VENV)/bin/pip:
 	python3 -m venv $(VENV)
@@ -51,3 +51,7 @@ docker-up:
 clean:
 	rm -rf $(VENV) .pytest_cache dist *.egg-info src/*.egg-info
 	find . -type d -name __pycache__ -exec rm -rf {} +
+
+demo-local:  ## build & run guardrailed Gradio demo locally (Docker)
+	docker build -f spaces/demo/Dockerfile.local -t pl-pii-demo:local .
+	docker run --rm -p 7860:7860 pl-pii-demo:local
