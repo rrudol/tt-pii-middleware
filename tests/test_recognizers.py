@@ -180,11 +180,11 @@ class TestEngineBehaviour:
 
     def test_redact_modes(self, engine):
         text = f"PESEL {VALID_PESEL}"
-        replaced, _ = engine.redact(text, "replace")
+        replaced, _, _ = engine.redact(text, "replace")
         assert replaced == "PESEL <PESEL>"
-        masked, _ = engine.redact(text, "mask")
+        masked, _, _ = engine.redact(text, "mask")
         assert masked == "PESEL " + "*" * len(VALID_PESEL)
-        hashed, _ = engine.redact(text, "hash")
+        hashed, _, _ = engine.redact(text, "hash")
         digest = hashed.removeprefix("PESEL ")
         assert len(digest) == 16 and VALID_PESEL not in hashed
 

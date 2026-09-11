@@ -167,7 +167,7 @@ def redact_form(
         return HTMLResponse(
             _page(text=text, error=f"rate limit: {RATE_LIMIT}/{int(RATE_WINDOW)}s per IP", mode=mode)
         )
-    redacted, spans = _engine.redact(text, mode=mode)
+    redacted, spans, _meta = _engine.redact(text, mode=mode)
     counts: dict[str, int] = {}
     for s in spans:
         counts[s.label] = counts.get(s.label, 0) + 1
@@ -193,7 +193,7 @@ async def redact_api(request: Request) -> JSONResponse:
         return JSONResponse({"error": f"max {MAX_CHARS} characters"}, status_code=413)
     if not _allow(_client_ip(request)):
         return JSONResponse({"error": "rate limited"}, status_code=429)
-    redacted, spans = _engine.redact(text, mode=mode)
+    redacted, spans, _meta = _engine.redact(text, mode=mode)
     return JSONResponse(
         {
             "redacted_text": redacted,

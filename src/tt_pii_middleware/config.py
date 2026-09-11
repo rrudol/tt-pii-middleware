@@ -25,11 +25,24 @@ class Settings(BaseSettings):
     # KRS is 10 digits with no checksum -> high FP risk; opt-in and
     # context-gated (base score below threshold, boosted only near "KRS").
     enable_krs: bool = False
-    # Salt mixed into `mode=hash` digests so identical values across
-    # deployments don't produce linkable hashes.
+    # Salt mixed into legacy `mode=hash` digests (DEPRECATED — prefer linkable).
     hash_salt: str = ""
     # DoS guard: reject request bodies with text longer than this (chars).
     max_text_length: int = 100_000
+
+    # --- linkable pseudonyms (HMAC-HKDF) ---
+    # 32+ byte master as base64 (dev). Prefer PSEUDONYM_MASTER_KEY_FILE in prod.
+    pseudonym_master_key_b64: str | None = None
+    pseudonym_master_key_file: str | None = None
+    # Optional multi-key: "v1:/path/k1,v2:/path/k2"
+    pseudonym_master_keys: str | None = None
+    pseudonym_active_kid: str = "v1"
+    # If true, missing keys only fail at linkable call time (service still boots).
+    pseudonym_fail_closed: bool = True
+    # Comma list; empty = any purpose allowed.
+    pseudonym_allowed_purposes: str = ""
+    default_pseudonym_purpose: str = "default"
+    default_token_bytes: int = 15
 
 
 @lru_cache

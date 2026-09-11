@@ -20,6 +20,9 @@ from pydantic import BaseModel, Field
 from tt_pii_middleware import __version__
 from tt_pii_middleware.analyzer import TT_LABELS, PiiEngine
 from tt_pii_middleware.config import Settings, get_settings
+from tt_pii_middleware.pseudo.keystore import KeystoreError, load_from_settings
+from tt_pii_middleware.pseudo.profiles import Profile, resolve_profile
+from tt_pii_middleware.pseudo.pseudonymizer import Pseudonymizer
 from tt_pii_middleware.logging import configure_logging, log_event
 
 logger = logging.getLogger("tt_pii_middleware")
@@ -60,16 +63,37 @@ class AnalyzeResponse(BaseModel):
 
 class RedactRequest(BaseModel):
     text: str
-    mode: Literal["mask", "replace", "hash"] = "replace"
+    mode: Literal["mask", "replace", "hash"] | None = Field(
+        default=None,
+        description="Legacy mode. Prefer `profile`. hash is deprecated (weak for PESEL).",
+    )
+    profile: Literal["strict", "mask", "linkable", "linkable_strict", "hash"] | None = Field(
+        default=None,
+        description="Policy profile. linkable/linkable_strict need HMAC master key.",
+    )
+    purpose: str | None = Field(
+        default=None,
+        description="HKDF purpose label (e.g. llm-gateway, eval). Default from settings.",
+        max_length=64,
+    )
+    tenant_id: str | None = Field(default=None, max_length=64)
+    key_id: str | None = Field(default=None, description="Master key id / version (e.g. v1).")
     language: Language | None = None
     entities: list[TTLabel] | None = None
     score_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    token_bytes: int | None = Field(default=None, ge=8, le=32)
+    strict_pseudonym: bool = False
 
 
 class RedactResponse(BaseModel):
     language: str
     redacted_text: str
     entities: list[SpanModel]
+    profile: str | None = None
+    purpose: str | None = None
+    key_id: str | None = None
+    privacy: dict[str, Any] | None = None
+    stats: dict[str, Any] | None = None
 
 
 class AnonymizeRequest(BaseModel):
@@ -111,7 +135,15 @@ async def lifespan(app: FastAPI):
     configure_logging(settings.log_level)
     started = time.perf_counter()
     app.state.settings = settings
-    app.state.engine = PiiEngine(settings)
+    store = load_from_settings(
+        master_key_b64=settings.pseudonym_master_key_b64,
+        master_key_file=settings.pseudonym_master_key_file,
+        master_keys=settings.pseudonym_master_keys,
+        active_kid=settings.pseudonym_active_kid,
+        fail_closed=settings.pseudonym_fail_closed,
+    )
+    app.state.pseudonymizer = Pseudonymizer(store)
+    app.state.engine = PiiEngine(settings, pseudonymizer=app.state.pseudonymizer)
     # Short socket timeouts: the vault is best-effort, so an unreachable
     # Redis must degrade to "mapping only in the response" instead of
     # parking worker threads on blocking connects.
@@ -201,24 +233,59 @@ def analyze(req: AnalyzeRequest, request: Request) -> AnalyzeResponse:
     )
 
 
-@app.post("/v1/redact", response_model=RedactResponse)
+@app.post("/v1/redact", response_model=RedactResponse, response_model_exclude_none=True)
 def redact(req: RedactRequest, request: Request) -> RedactResponse:
     engine: PiiEngine = request.app.state.engine
-    _check_text_size(request.app.state.settings, req.text)
+    settings: Settings = request.app.state.settings
+    _check_text_size(settings, req.text)
     started = time.perf_counter()
     language = req.language or engine.settings.default_language
-    redacted_text, spans = engine.redact(
-        req.text,
-        mode=req.mode,
-        language=language,
-        labels=req.entities,
-        threshold=req.score_threshold,
-    )
+
+    mode = req.mode if req.mode is not None else "replace"
+    try:
+        profile = resolve_profile(req.profile, mode if req.profile is None else None)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    purpose = req.purpose or settings.default_pseudonym_purpose
+    allowed = {
+        p.strip()
+        for p in (settings.pseudonym_allowed_purposes or "").split(",")
+        if p.strip()
+    }
+    if allowed and purpose not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=f"purpose {purpose!r} not in PSEUDONYM_ALLOWED_PURPOSES",
+        )
+
+    try:
+        redacted_text, spans, meta = engine.redact(
+            req.text,
+            mode=mode,
+            language=language,
+            labels=req.entities,
+            threshold=req.score_threshold,
+            profile=profile.value,
+            purpose=purpose,
+            tenant_id=req.tenant_id or "_",
+            key_id=req.key_id,
+            token_bytes=req.token_bytes,
+            strict_pseudonym=req.strict_pseudonym,
+            pseudonymizer=request.app.state.pseudonymizer,
+        )
+    except KeystoreError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     log_event(
         logger,
         "redact",
         language=language,
-        mode=req.mode,
+        profile=meta.get("profile"),
+        purpose=meta.get("purpose"),
+        key_id=meta.get("key_id"),
         text_chars=len(req.text),
         entity_counts=_entity_counts(spans),
         duration_ms=round((time.perf_counter() - started) * 1000, 1),
@@ -227,6 +294,11 @@ def redact(req: RedactRequest, request: Request) -> RedactResponse:
         language=language,
         redacted_text=redacted_text,
         entities=[SpanModel(**s.to_dict()) for s in spans],
+        profile=meta.get("profile"),
+        purpose=meta.get("purpose"),
+        key_id=meta.get("key_id"),
+        privacy=meta.get("privacy"),
+        stats=meta.get("stats") or None,
     )
 
 

@@ -122,3 +122,46 @@ class TestAnonymizeRestore:
             "/v1/restore", json={"text": "abc", "session_id": "deadbeef"}
         )
         assert response.status_code == 400
+
+
+class TestLinkableProfile:
+    def test_linkable_requires_key(self, client):
+        # Default test client has no master key → 503
+        response = client.post(
+            "/v1/redact",
+            json={"text": "PESEL 44051401359", "profile": "linkable", "purpose": "eval"},
+        )
+        assert response.status_code == 503
+
+    def test_linkable_with_key(self, monkeypatch):
+        import base64
+        from fastapi.testclient import TestClient
+        from tt_pii_middleware.app import app
+        from tt_pii_middleware.config import get_settings
+        from tt_pii_middleware.pseudo.keystore import load_from_settings
+        from tt_pii_middleware.pseudo.pseudonymizer import Pseudonymizer
+        from tt_pii_middleware.analyzer import PiiEngine
+
+        key_b64 = base64.b64encode(bytes([0x42] * 32)).decode()
+        monkeypatch.setenv("PSEUDONYM_MASTER_KEY_B64", key_b64)
+        monkeypatch.setenv("PSEUDONYM_ACTIVE_KID", "v1")
+        get_settings.cache_clear()
+        settings = get_settings()
+        store = load_from_settings(
+            master_key_b64=settings.pseudonym_master_key_b64,
+            master_key_file=None,
+            master_keys=None,
+            active_kid="v1",
+            fail_closed=True,
+        )
+        # Rebuild app state inside client lifespan is hard; call engine directly via override
+        from tt_pii_middleware.config import Settings
+        eng = PiiEngine(Settings(enable_krs=False), Pseudonymizer(store))
+        out, spans, meta = eng.redact(
+            "PESEL 44051401359 i znowu 44051401359",
+            profile="linkable",
+            purpose="eval",
+        )
+        assert "44051401359" not in out
+        assert meta["key_id"] == "v1"
+        assert "PESEL_v1_" in out
