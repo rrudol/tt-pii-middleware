@@ -1,14 +1,20 @@
 # Tailnet demo (no Hugging Face Spaces)
 
-Interactive **redact-only** Gradio UI, reachable only on the Tailscale tailnet.
+Interactive **redact-only** FastAPI UI, reachable only on the Tailscale tailnet
+via HTTPS at **https://guard.rudol.dev**.
 
-## Live (radium-226-ovh)
+## Live
 
 | | |
 |---|---|
-| URL | http://radium-226-ovh:7860 / http://100.87.100.111:7860 |
+| **Primary** | https://guard.rudol.dev |
+| Direct IP | http://100.87.100.111:7860 |
 | MagicDNS | http://radium-226-ovh.taila403e3.ts.net:7860 |
-| Bind | Tailscale IP only (not public internet) |
+| Host | radium-226-ovh Docker `pl-pii-demo` |
+| Ingress | k8s ns `guard` (radium-226 GitOps) → EndpointSlice host IP:7860 |
+| DNS | Cloudflare A DNS-only → 100.87.100.111 (not proxied) |
+| TLS | cert-manager LE DNS-01 (`guard-rudol-dev-tls`) |
+| ACL | ingress whitelist `100.64.0.0/10` (+ CNI); public NIC firewalled |
 | Guardrails | max 2000 chars, 30 req/IP/min, redact-only, synthetic examples |
 
 ## Deploy / update
